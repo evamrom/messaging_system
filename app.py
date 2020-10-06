@@ -14,8 +14,8 @@ def test():
     if request.method == "POST":
         req_json = request.json
         name = req_json['name']
-        return jsonify("response", "Hello Back "+ name)
+        return jsonify("response", "Be my friend "+ name)
 
 
-if __name__ == '__main__':
+if __name__ == '__app__':
     app.run(debug= True, port = 8080)
