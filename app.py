@@ -1,32 +1,23 @@
-import json
-from flask import Flask, jsonify, request, Response
-from Users import users
+from datetime import datetime
+from time import strftime
+from flask import Flask, jsonify, request
+from users.current_user import current_user
+from users.users import users
 
 app = Flask(__name__)
 
 
-class CurrentUser:
-    def __init__(self):
-        self.current_user = None
-
-    def get_current_user(self):
-        return self.current_user
-
-    def set_current_user(self, new_current_user):
-        self.current_user = new_current_user
-
-
-current_user = CurrentUser()
-
-
 @app.route('/register', methods=["POST"])
 def register():
+    """Register the user to system. If the user already exists it return me a message.
+    The user need to have a unique username and password.
+        """
     try:
         data = request.get_json()
         username = data.get("username")
         password = data.get("password")
-        if users.check_if_contains(username, password):
-            return jsonify({"ststus": "user already exists"})
+        if users.get_user(username, password):
+            return jsonify({"status": "user already exists"})
         else:
             users.add_user(username, password)
             return jsonify({"status": "succeed to register"})
@@ -36,19 +27,23 @@ def register():
 
 @app.route('/login', methods=["POST"])
 def login():
+    """Login to the system with username and password. If the user doest exists in the system or
+    the password or username incorrect the system will alert and the user can try again.
+    The system initialize a current user so from now it will be the user logged it.
+        """
     try:
         data = request.get_json()
         username = data.get("username")
         password = data.get("password")
-        if users.check_if_contains(username, password):
-            new_current_user = users.get_user(username, password)
+        new_current_user = users.get_user(username, password)
+        if new_current_user:
             current_user.set_current_user(new_current_user)
-            # logged_in = current_user.get_logged_in()
-            # if not logged_in:
-            # current_user.set_login()
-            return jsonify({"status": "successfully logged in"})
-            # else:
-            #     return jsonify({"status": "user already logged in"})
+            curr = current_user.get_current_user()
+            if not curr.get_logged_in():
+                curr.set_login()
+                return jsonify({"status": "successfully logged in"})
+            else:
+                return jsonify({"status": "user already logged in"})
         else:
             return jsonify({"status": "username or password not correct"})
     except:
@@ -57,65 +52,71 @@ def login():
 
 @app.route('/logout', methods=["GET"])
 def logout():
-    # try:
-    # current_user.get_current_user().set_logout()
-    # except:
-    #     jsonify({"status": "error"})
-    jsonify({"status": "successfully logged out"})
+    """Logout from the system. It means the current user return to be None
+        """
+    try:
+        current_user.get_current_user().set_logout()
+        current_user.set_current_user(None)
+    except:
+        return jsonify({"status": "error"})
+    return jsonify({"status": "successfully logged out"})
 
 
 @app.route('/write_message', methods=["POST"])
 def write_message():
     try:
+        curr = current_user.get_current_user()
         data = request.get_json()
-        sender = data.get("sender")
+        sender = curr.get_username()
         receiver = data.get("receiver")
         message = data.get("message")
         subject = data.get("subject")
-        creation_date = "0-0-0"
-        if users.check_if_contains_reciever(receiver):
-            receiver_user = users.get_reciever(receiver)
-            current_user.get_current_user().write_message(sender, receiver, message, subject, creation_date,
-                                                          receiver_user)
+        creation_date = datetime.now().strftime("%d/%m/%Y, %H:%M:%S")
+        if curr.get_username() == sender:
+            receiver_user = users.get_receiver(receiver)
+            if receiver_user:
+                curr.write_message(sender, receiver, message, subject, creation_date, receiver_user)
+            else:
+                return jsonify({"status": "the receiver not registered yet"})
         else:
-            return jsonify({"status": "the receiver not registered yet"})
+            return jsonify({"status": "you are not the sender in the message"})
+
+        return jsonify({"status": "successfully written message"})
     except:
         return jsonify({"status": "error"})
-
-    return jsonify({"status": "successfully written message"})
 
 
 @app.route('/get_all_messages', methods=["GET"])
 def get_all_messages():
+    """Get all messages from the user currently logged in
+        """
     try:
-        all_messages = current_user.get_current_user().get_messages().get_all_message()
+        curr = current_user.get_current_user()
     except:
         return jsonify({"status": "error"})
 
-    results = []
-    for message in all_messages:
-        results.append(message.json_output())
-
-    return jsonify(results)
+    return jsonify(curr.get_messages().output_json_all_messages())
 
 
-@app.route('/get_all_unread_message', methods=["GET"])
+@app.route('/get_all_unread_messages', methods=["GET"])
 def get_all_unread_messages():
+    """Get all the unread messages from the user currently logged in
+        """
     try:
-        all_unread_messages = current_user.get_current_user().get_messages().get_all_unread_message()
+        curr = current_user.get_current_user()
     except:
         return jsonify({"status": "register error"})
 
-    results = []
-    for message in all_unread_messages:
-        results.append(message.json_output())
-    return Response(json.dumps(results))
+    return jsonify(curr.get_messages().output_json_all_unread_messages())
 
 
 @app.route('/read_message', methods=["GET"])
 def read_message():
+    """Read the last message of the logged in user, no matter if its read or not.
+        """
     try:
-        message = current_user.get_current_user().get_messages().get_one_message()
+        curr = current_user.get_current_user()
+        message = curr.get_messages().get_one_message()
     except:
         return jsonify({"status": "register error"})
 
@@ -124,12 +125,16 @@ def read_message():
 
 @app.route('/delete_message', methods=["GET"])
 def delete_message():
+    """Delete the last message of the logged in user, no matter if its read or not.
+        """
     try:
-        current_user.current_user().get_messages().delete_message()
+        curr = current_user.get_current_user()
+        curr.get_messages().delete_message()
     except:
         return jsonify({"status": "delete message error"})
-    return jsonify({"status": "delete message error"})
+    return jsonify({"status": "message deleted successfully"})
 
 
 if __name__ == '__main__':
     app.run(host="localhost", port='8080', debug="true")
+    # app.run( port='8080', debug="true")

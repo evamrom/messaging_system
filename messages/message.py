@@ -1,8 +1,3 @@
-import json
-
-from flask import Response
-
-
 class Message:
     def __init__(self, sender, receiver, message, subject, creation_date):
         self.sender = sender
@@ -11,19 +6,6 @@ class Message:
         self.subject = subject
         self.creation_date = creation_date
         self.seen = False
-
-    #     check how to print
-    def json_output(self):
-        js = {
-            "sender": self.get_sender(),
-            "receiver": self.get_receiver(),
-            "message": self.get_message(),
-            "subject": self.get_subject(),
-            "creation_date": self.get_creation_date(),
-            "seen": str(self.get_seen())
-        }
-        return js
-
 
     def get_sender(self):
         return self.sender
@@ -45,3 +27,14 @@ class Message:
 
     def set_seen(self):
         self.seen = True
+
+    def json_output(self):
+        result = {
+            "sender": self.sender,
+            "receiver": self.receiver,
+            "message": self.message,
+            "subject": self.subject,
+            "creation_date": self.creation_date,
+            "seen": str(self.seen)
+        }
+        return result
